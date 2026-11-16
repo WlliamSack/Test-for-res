@@ -1,0 +1,32 @@
+{
+  "name": "BSNT YHCT Pro — Ôn thi Nội trú",
+  "short_name": "BSNT YHCT",
+  "description": "Ứng dụng trắc nghiệm ôn thi Bác sĩ Nội trú YHCT tối ưu cho điện thoại Samsung/Android.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

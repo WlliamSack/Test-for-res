@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563eb" id="meta-theme-color" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>BSNT YHCT Pro — Mobile</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- TOP APP BAR -->
+    <header class="m-topbar">
+      <div class="m-topbar-left">
+        <button class="icon-btn" id="btn-topbar-back" style="display:none;" onclick="handleTopBack()" aria-label="Quay lại">←</button>
+        <div class="m-topbar-title" id="topbar-title">🩺 BSNT YHCT Pro</div>
+      </div>
+      <div class="m-topbar-actions">
+        <button class="icon-btn" onclick="openQuestionModal()" title="Tạo câu hỏi mới" aria-label="Tạo câu hỏi">➕</button>
+        <button class="icon-btn" onclick="toggleTheme()" title="Chuyển Sáng/Tối" aria-label="Chuyển giao diện Sáng/Tối">🌗</button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="m-main" id="main-content"></main>
+
+    <!-- BOTTOM NAVIGATION BAR -->
+    <nav class="m-bottom-nav" id="bottom-nav" aria-label="Điều hướng chính">
+      <button class="nav-tab active" data-tab="dashboard" onclick="openDashboard()">
+        <span class="tab-ico">🏠</span>
+        <span>Tổng quan</span>
+      </button>
+      <button class="nav-tab" data-tab="subject" onclick="openSubjectsTab()">
+        <span class="tab-ico">📚</span>
+        <span>Môn học</span>
+      </button>
+      <button class="nav-tab" data-tab="question-bank" onclick="openQuestionBank()">
+        <span class="tab-ico">🗂️</span>
+        <span>Ngân hàng</span>
+      </button>
+      <button class="nav-tab" data-tab="settings" onclick="openSettingsTab()">
+        <span class="tab-ico">⚙️</span>
+        <span>Dữ liệu</span>
+      </button>
+    </nav>
+
+    <!-- QUIZ BOTTOM ACTION BAR -->
+    <div class="quiz-bottom-bar" id="quiz-bottom-bar">
+      <button class="btn btn-outline" id="quiz-prev-btn" onclick="prevQuestion()">⬅️ Trước</button>
+      <button class="btn btn-soft" id="quiz-palette-btn" onclick="openPaletteSheet()">⊞ Bảng câu</button>
+      <button class="btn btn-primary" id="quiz-next-btn" onclick="nextQuestion()">Tiếp ➡️</button>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- HIDDEN JSON FILE INPUT -->
+  <input type="file" id="import-json-input" accept=".json,application/json" style="display:none" onchange="importBackupJSON(event)" />
+
+  <!-- BOTTOM SHEET: QUESTION PALETTE -->
+  <div class="sheet-backdrop" id="sheet-palette" onclick="if(event.target===this) closePaletteSheet()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h3 id="palette-sheet-title">Bảng câu hỏi</h3>
+        <button class="btn btn-sm btn-outline" onclick="closePaletteSheet()">✕ Đóng</button>
+      </div>
+      <div class="sheet-body" id="palette-sheet-body"></div>
+    </div>
+  </div>
+
+  <!-- SHEET: ADD / EDIT SUBJECT -->
+  <div class="sheet-backdrop" id="modal-subject" onclick="if(event.target===this) closeModals()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h3 id="subject-modal-header">📚 Thêm / Sửa Môn học</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="sheet-body">
+        <input type="hidden" id="subj-edit-id" />
+        <div class="form-group">
+          <label>Tên môn học</label>
+          <input type="text" id="subj-name-input" class="form-control" placeholder="VD: Giải phẫu" />
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Khối môn thi</label>
+            <select id="subj-group-select" class="form-control">
+              <option value="Cơ bản">Khối Cơ bản</option>
+              <option value="Chuyên ngành">Khối Chuyên ngành</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Biểu tượng (Emoji)</label>
+            <input type="text" id="subj-icon-input" class="form-control" value="📘" placeholder="🦴, 🫀, ☯️" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Màu chủ đạo</label>
+          <input type="color" id="subj-color-input" class="form-control" value="#2563eb" style="height:46px; padding:4px;" />
+        </div>
+        <div class="form-group">
+          <label>Mô tả môn học</label>
+          <textarea id="subj-desc-input" class="form-control" rows="2" placeholder="Mô tả ngắn gọn nội dung ôn tập..."></textarea>
+        </div>
+      </div>
+      <div class="sheet-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveSubjectModal()">💾 Lưu môn học</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHEET: ADD / EDIT LESSON -->
+  <div class="sheet-backdrop" id="modal-lesson" onclick="if(event.target===this) closeModals()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h3 id="lesson-modal-header">📁 Thêm / Sửa bài học</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="sheet-body">
+        <input type="hidden" id="lesson-modal-subject-id" />
+        <input type="hidden" id="lesson-modal-edit-id" />
+        <div class="form-group">
+          <label>Tên bài học / chủ đề nhỏ</label>
+          <input type="text" id="lesson-title-input" class="form-control" placeholder="VD: Bài 5: Đám rối thần kinh cánh tay" />
+        </div>
+        <div class="form-group">
+          <label>Mô tả trọng tâm ôn tập</label>
+          <textarea id="lesson-desc-input" class="form-control" rows="3" placeholder="Nội dung trọng tâm..."></textarea>
+        </div>
+      </div>
+      <div class="sheet-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveLessonModal()">💾 Lưu bài học</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHEET: ADD / EDIT QUESTION -->
+  <div class="sheet-backdrop" id="modal-question" onclick="if(event.target===this) closeModals()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h3 id="q-modal-header">➕ Câu hỏi trắc nghiệm</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="sheet-body">
+        <input type="hidden" id="q-edit-id" />
+        <div class="form-group">
+          <label>Môn học</label>
+          <select id="q-subject-select" class="form-control" onchange="updateLessonDropdown(this.value)"></select>
+        </div>
+        <div class="form-group">
+          <label>Bài học (Chủ đề nhỏ)</label>
+          <select id="q-lesson-select" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Nội dung câu hỏi</label>
+          <textarea id="q-stem-input" class="form-control" rows="3" placeholder="Nhập nội dung câu hỏi..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Phương án A</label>
+          <input type="text" id="q-opt-0" class="form-control" placeholder="Đáp án A" />
+        </div>
+        <div class="form-group">
+          <label>Phương án B</label>
+          <input type="text" id="q-opt-1" class="form-control" placeholder="Đáp án B" />
+        </div>
+        <div class="form-group">
+          <label>Phương án C</label>
+          <input type="text" id="q-opt-2" class="form-control" placeholder="Đáp án C" />
+        </div>
+        <div class="form-group">
+          <label>Phương án D</label>
+          <input type="text" id="q-opt-3" class="form-control" placeholder="Đáp án D" />
+        </div>
+        <div class="form-group">
+          <label>Đáp án đúng</label>
+          <select id="q-correct-select" class="form-control">
+            <option value="0">Đáp án A</option>
+            <option value="1">Đáp án B</option>
+            <option value="2">Đáp án C</option>
+            <option value="3">Đáp án D</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Giải thích cơ chế (dùng **từ khóa** để in đậm)</label>
+          <textarea id="q-exp-input" class="form-control" rows="4" placeholder="Giải thích đáp án đúng, phân tích câu nhiễu..."></textarea>
+        </div>
+      </div>
+      <div class="sheet-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveQuestionModal()">💾 Lưu câu hỏi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHEET: BULK IMPORT -->
+  <div class="sheet-backdrop" id="modal-bulk-import" onclick="if(event.target===this) closeModals()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <h3>📥 Nhập nhanh hàng loạt</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="form-group">
+          <label>Môn học đích</label>
+          <select id="bulk-subject-select" class="form-control" onchange="updateBulkLessonDropdown(this.value)"></select>
+        </div>
+        <div class="form-group">
+          <label>Bài học đích</label>
+          <select id="bulk-lesson-select" class="form-control"></select>
+        </div>
+        <div style="background:var(--primary-soft); padding:10px 12px; border-radius:10px; font-size:12.5px;">
+          Ngăn cách mỗi câu bằng <strong>1 dòng trống</strong> hoặc <code>Câu 1:</code>. Đánh dấu đúng bằng <code>*B. ...</code> hoặc dòng <code>Đáp án: B</code>, thêm <code>Giải thích: ...</code> nếu có.
+        </div>
+        <div class="form-group">
+          <label>Dán danh sách câu hỏi</label>
+          <textarea id="bulk-text-input" class="form-control" rows="8" placeholder="Câu 1: ...&#10;A. ...&#10;*B. ...&#10;C. ...&#10;D. ...&#10;Giải thích: ..."></textarea>
+        </div>
+      </div>
+      <div class="sheet-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="processBulkImport()">🚀 Nhập câu hỏi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

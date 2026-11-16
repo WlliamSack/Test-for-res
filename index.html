@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BSNT Quiz — Hệ thống Trắc nghiệm Ôn thi Bác sĩ Nội trú YHCT (Full Admin)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand" onclick="openDashboard()">
+      <div class="brand-logo">🩺</div>
+      <div class="brand-text">
+        <h1>BSNT YHCT Pro</h1>
+        <p>Quản trị & Luyện thi Nội trú</p>
+      </div>
+    </div>
+
+    <div id="sidebar-nav"></div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-sm btn-ghost-dark" onclick="openSubjectModal()">➕ Thêm môn học mới</button>
+      <button class="btn btn-sm btn-ghost-dark" onclick="openBulkImportModal('giai-phau')">📥 Nhập nhanh hàng loạt</button>
+      <button class="btn btn-sm btn-ghost-dark" onclick="exportToDataJS()">⚡ Xuất/Ghi đè file data.js</button>
+      <button class="btn btn-sm btn-ghost-dark" onclick="exportBackupJSON()">💾 Sao lưu dự phòng (.json)</button>
+      <button class="btn btn-sm btn-ghost-dark" onclick="document.getElementById('import-json-input').click()">📂 Khôi phục từ (.json)</button>
+      <button class="btn btn-sm btn-ghost-dark" onclick="resetProgress()">🔄 Đặt lại lịch sử làm bài</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-title" id="topbar-title">
+        <span>🎯 Hệ thống Ôn thi Bác sĩ Nội trú</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm btn-primary" onclick="openQuestionModal()">➕ Tạo câu hỏi</button>
+        <button class="btn btn-sm btn-outline" onclick="openBulkImportModal(state.activeSubjectId || 'giai-phau')">📥 Nhập lô câu hỏi</button>
+        <button class="btn btn-sm btn-outline" onclick="exportToDataJS()" title="Ghi toàn bộ chỉnh sửa trên web thẳng vào file data.js trên ổ cứng">💾 Lưu vào data.js</button>
+        <button class="btn btn-sm btn-outline" onclick="toggleTheme()">🌗 Sáng/Tối</button>
+      </div>
+    </header>
+
+    <main class="container" id="main-content"></main>
+  </div>
+
+  <!-- HIDDEN JSON FILE INPUT -->
+  <input type="file" id="import-json-input" accept=".json" style="display:none" onchange="importBackupJSON(event)" />
+
+  <!-- MODAL 0: ADD / EDIT SUBJECT (MÔN HỌC) -->
+  <div class="modal-backdrop" id="modal-subject">
+    <div class="modal" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 id="subject-modal-header">📚 Thêm / Chỉnh sửa Môn học</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="subj-edit-id" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tên môn học</label>
+            <input type="text" id="subj-name-input" class="form-control" placeholder="VD: Giải phẫu" />
+          </div>
+          <div class="form-group">
+            <label>Khối môn thi</label>
+            <select id="subj-group-select" class="form-control">
+              <option value="Cơ bản">Khối Cơ bản</option>
+              <option value="Chuyên ngành">Khối Chuyên ngành</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Biểu tượng (Emoji)</label>
+            <input type="text" id="subj-icon-input" class="form-control" value="📘" placeholder="VD: 🦴, 🫀, 🧬, ☯️" />
+          </div>
+          <div class="form-group">
+            <label>Màu chủ đạo</label>
+            <input type="color" id="subj-color-input" class="form-control" value="#2563eb" style="height:40px; padding:4px;" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Mô tả môn học</label>
+          <textarea id="subj-desc-input" class="form-control" rows="2" placeholder="Mô tả ngắn gọn nội dung ôn tập..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveSubjectModal()">Lưu môn học</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 1: ADD / EDIT LESSON (BÀI NHỎ) -->
+  <div class="modal-backdrop" id="modal-lesson">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 id="lesson-modal-header">📁 Thêm / Sửa bài học nhỏ</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="lesson-modal-subject-id" />
+        <input type="hidden" id="lesson-modal-edit-id" />
+        <div class="form-group">
+          <label>Tên bài học / chủ đề nhỏ</label>
+          <input type="text" id="lesson-title-input" class="form-control" placeholder="VD: Bài 5: Giải phẫu Đám rối thần kinh cánh tay" />
+        </div>
+        <div class="form-group">
+          <label>Mô tả trọng tâm ôn tập</label>
+          <textarea id="lesson-desc-input" class="form-control" rows="3" placeholder="VD: Các thân nhất, thân nhì, nhánh tận và ứng dụng lâm sàng..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveLessonModal()">Lưu bài học</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADD / EDIT SINGLE QUESTION -->
+  <div class="modal-backdrop" id="modal-question">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="q-modal-header">➕ Thêm / Chỉnh sửa câu hỏi trắc nghiệm</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="q-edit-id" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Môn học</label>
+            <select id="q-subject-select" class="form-control" onchange="updateLessonDropdown(this.value)"></select>
+          </div>
+          <div class="form-group">
+            <label>Bài học (Chủ đề nhỏ)</label>
+            <select id="q-lesson-select" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Nội dung câu hỏi (Tình huống lâm sàng / Câu dẫn)</label>
+          <textarea id="q-stem-input" class="form-control" rows="3" placeholder="Nhập nội dung câu hỏi..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phương án A</label>
+            <input type="text" id="q-opt-0" class="form-control" placeholder="Nội dung đáp án A" />
+          </div>
+          <div class="form-group">
+            <label>Phương án B</label>
+            <input type="text" id="q-opt-1" class="form-control" placeholder="Nội dung đáp án B" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Phương án C</label>
+            <input type="text" id="q-opt-2" class="form-control" placeholder="Nội dung đáp án C" />
+          </div>
+          <div class="form-group">
+            <label>Phương án D</label>
+            <input type="text" id="q-opt-3" class="form-control" placeholder="Nội dung đáp án D" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Đáp án đúng</label>
+          <select id="q-correct-select" class="form-control" style="max-width:220px;">
+            <option value="0">Đáp án A</option>
+            <option value="1">Đáp án B</option>
+            <option value="2">Đáp án C</option>
+            <option value="3">Đáp án D</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Giải thích cơ chế & Ghi chú cá nhân (Dùng **từ khóa** để in đậm)</label>
+          <textarea id="q-exp-input" class="form-control" rows="5" placeholder="Giải thích tại sao đáp án đúng, tại sao các câu nhiễu sai, mẹo nhớ nhanh..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="saveQuestionModal()">💾 Lưu câu hỏi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: BULK TEXT IMPORT -->
+  <div class="modal-backdrop" id="modal-bulk-import">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>📥 Nhập nhanh hàng loạt câu hỏi (Copy - Paste)</h3>
+        <button class="btn btn-sm btn-outline" onclick="closeModals()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Chọn Môn học đích</label>
+            <select id="bulk-subject-select" class="form-control" onchange="updateBulkLessonDropdown(this.value)"></select>
+          </div>
+          <div class="form-group">
+            <label>Chọn Bài học đích</label>
+            <select id="bulk-lesson-select" class="form-control"></select>
+          </div>
+        </div>
+
+        <div style="background:var(--primary-soft); padding:12px 14px; border-radius:8px; font-size:13px;">
+          <strong>Hướng dẫn định dạng linh hoạt:</strong><br>
+          • Cách 1: Ngăn cách mỗi câu bằng <strong>1 dòng trống</strong>, hoặc bắt đầu mỗi câu bằng chữ <code>Câu 1:</code>, <code>Câu 2:</code>.<br>
+          • Cách 2: Đánh dấu đáp án đúng bằng dấu <code>*</code> ở đầu (VD: <code>*B. ...</code>) HOẶC ghi dòng <code>Đáp án: B</code> ở dưới.<br>
+          • Giải thích (tùy chọn): Bắt đầu bằng chữ <code>Giải thích: ...</code> hoặc <code>GT: ...</code>
+        </div>
+
+        <div class="form-group">
+          <label>Dán danh sách câu hỏi vào đây</label>
+          <textarea id="bulk-text-input" class="form-control" rows="10" placeholder="Câu 1: Huyệt Nguyên của kinh Túc thiếu âm Thận là huyệt nào?
+A. Dũng tuyền
+*B. Thái khê
+C. Phục lưu
+D. Nhiên cốc
+Giải thích: Thái khê (KI3) vừa là huyệt Du (Thổ) vừa là huyệt Nguyên của kinh Thận.
+
+Câu 2: Enzym nào đặc hiệu nhất cho tổn thương tế bào nhu mô gan?
+A. AST
+B. ALT
+C. GGT
+D. ALP
+Đáp án: B
+Giải thích: ALT khu trú chủ yếu ở bào tương tế bào gan nên đặc hiệu hơn AST."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModals()">Hủy</button>
+        <button class="btn btn-primary" onclick="processBulkImport()">🚀 Nhập toàn bộ câu hỏi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
