@@ -170,6 +170,7 @@ function loadState() {
     migrateHistoryToLessonSessions();
   }
 
+  cleanupExpiredSessions();
   applyTheme(savedTheme);
   saveState();
 }
@@ -351,10 +352,75 @@ function resolveQuestionsForSession(sess) {
   return [];
 }
 
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // Tự động xóa phiên làm dở sau 7 ngày
+
+function isSessionExpired(sess, nowMs = Date.now()) {
+  if (!sess || !sess.updatedAt) return false;
+  const updatedMs = Date.parse(sess.updatedAt);
+  if (Number.isNaN(updatedMs)) return false;
+  return (nowMs - updatedMs) > SESSION_TTL_MS;
+}
+
+function cleanupExpiredSessions() {
+  const nowMs = Date.now();
+  const nextSessions = {};
+
+  Object.entries(state.sessions || {}).forEach(([key, sess]) => {
+    if (!sess) return;
+    if (sess.mode === "exam" && sess.submitted) {
+      if (state.lastSessionKey === key) state.lastSessionKey = null;
+      return;
+    }
+
+    const qs = resolveQuestionsForSession(sess);
+    const totalCount = qs.length;
+    const answeredCount = totalCount > 0
+      ? qs.filter(q => {
+          const ch = sess.answers?.[q.id];
+          return typeof ch === "number" && ch >= 0 && ch < q.options.length;
+        }).length
+      : Object.keys(sess.answers || {}).length;
+
+    const isUnfinished = answeredCount > 0 && answeredCount < totalCount;
+    if (isUnfinished && isSessionExpired(sess, nowMs)) {
+      if (state.lastSessionKey === key) state.lastSessionKey = null;
+      if (sess.kind === "lesson" && sess.mode === "tutor") {
+        nextSessions[key] = {
+          key,
+          kind: "lesson",
+          subjectId: sess.subjectId,
+          lessonId: sess.lessonId,
+          groupName: null,
+          title: sess.title,
+          mode: "tutor",
+          preserveLiveOrder: true,
+          questionIds: null,
+          currentIndex: 0,
+          currentQuestionId: null,
+          answers: {},
+          revealed: {},
+          flagged: {},
+          submitted: false,
+          timerSeconds: 0,
+          updatedAt: new Date(nowMs).toISOString()
+        };
+      }
+      return;
+    }
+
+    nextSessions[key] = sess;
+  });
+
+  state.sessions = nextSessions;
+  if (state.lastSessionKey && !state.sessions[state.lastSessionKey]) {
+    state.lastSessionKey = null;
+  }
+}
+
 function getLastActiveSessionBannerData() {
   if (!state.lastSessionKey) return null;
   const sess = state.sessions[state.lastSessionKey];
-  if (!sess || (sess.mode === "exam" && sess.submitted)) return null;
+  if (!sess || (sess.mode === "exam" && sess.submitted) || isSessionExpired(sess)) return null;
   const qs = resolveQuestionsForSession(sess);
   if (!qs.length) return null;
 
@@ -399,6 +465,11 @@ function resumeLastSession() {
 function saveCurrentQuizSession() {
   if (state.currentView !== "quiz" || !state.quiz.sessionKey) return;
   const key = state.quiz.sessionKey;
+  if (state.quiz.mode === "exam" && state.quiz.submitted) {
+    delete state.sessions[key];
+    if (state.lastSessionKey === key) state.lastSessionKey = null;
+    return;
+  }
   const prevMeta = state.sessions[key] || {};
   const meta = state.quiz.sessionMeta || {};
   const preserveLiveOrder = Boolean(meta.preserveLiveOrder ?? prevMeta.preserveLiveOrder);
