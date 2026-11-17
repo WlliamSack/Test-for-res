@@ -2,6 +2,7 @@
 const STORAGE_KEYS = {
   CURRICULUM: "bsnt_curriculum_v1",
   QUESTIONS: "bsnt_questions_v1",
+  QUESTIONS_DELTA: "bsnt_questions_delta_v1",
   HISTORY: "bsnt_history_v1",
   BOOKMARKS: "bsnt_bookmarks_v1",
   SESSIONS: "bsnt_sessions_v1",
@@ -9,6 +10,14 @@ const STORAGE_KEYS = {
   THEME: "bsnt_theme_v1",
   DATA_REVISION: "bsnt_data_revision_v1"
 };
+
+function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn("Storage quota warning for", key, err);
+  }
+}
 
 let state = {
   curriculum: [],
@@ -60,6 +69,7 @@ function loadState() {
   const currentRev = typeof DATA_REVISION !== "undefined" ? DATA_REVISION : "";
 
   const savedCurr = localStorage.getItem(STORAGE_KEYS.CURRICULUM);
+  const savedDelta = localStorage.getItem(STORAGE_KEYS.QUESTIONS_DELTA);
   const savedQues = localStorage.getItem(STORAGE_KEYS.QUESTIONS);
   const savedHist = localStorage.getItem(STORAGE_KEYS.HISTORY);
   const savedBook = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
@@ -81,7 +91,7 @@ function loadState() {
             exLes.description = defLes.description;
           }
         });
-        if (defSubj.id === "hoa-sinh") {
+        if (defSubj.id === "hoa-sinh" || defSubj.id === "giai-phau" || defSubj.id === "sinh-ly") {
           const validIds = new Set(defSubj.lessons.map(l => l.id));
           existingSubj.lessons = existingSubj.lessons.filter(l => validIds.has(l.id));
           const lessonOrder = defSubj.lessons.map(l => l.id);
@@ -98,32 +108,54 @@ function loadState() {
     state.curriculum = JSON.parse(JSON.stringify(defCurr));
   }
 
-  const savedRev = localStorage.getItem(STORAGE_KEYS.DATA_REVISION);
-  const revChanged = Boolean(currentRev) && savedRev !== currentRev;
+  const obsoleteIds = new Set(["q-hs-1", "q-hs-2", "q-gp-1", "q-gp-2", "q-sl-1", "q-sl-2"]);
+  const defMap = new Map(defQues.map(q => [q.id, q]));
+  let customQuestions = [];
+  let deletedIdSet = new Set();
 
+  if (savedDelta) {
+    try {
+      const parsed = JSON.parse(savedDelta);
+      customQuestions = Array.isArray(parsed.custom) ? parsed.custom : [];
+      deletedIdSet = new Set(Array.isArray(parsed.deletedIds) ? parsed.deletedIds : []);
+    } catch (_) {}
+  } else if (savedQues) {
+    try {
+      const legacy = JSON.parse(savedQues);
+      legacy.forEach(q => {
+        if (!q || !q.id || obsoleteIds.has(q.id)) return;
+        if (q.lessonId === "hs-enzym") q.lessonId = "hs-acid-citric";
+        if (q.lessonId === "hs-glucid-lipid") q.lessonId = "hs-glucid";
+        if (q.lessonId === "hs-protid-gan") q.lessonId = "hs-gan";
+        if (q.userEdited || (!defMap.has(q.id) && !/^q-(gp|hs|sl)-/.test(q.id))) {
+          customQuestions.push(q);
+        }
+      });
+    } catch (_) {}
+  }
   if (savedQues) {
-    state.questions = JSON.parse(savedQues).filter(q => q.id !== "q-hs-1" && q.id !== "q-hs-2");
-    state.questions.forEach(q => {
-      if (q.lessonId === "hs-enzym") q.lessonId = "hs-acid-citric";
-      if (q.lessonId === "hs-glucid-lipid") q.lessonId = "hs-glucid";
-      if (q.lessonId === "hs-protid-gan") q.lessonId = "hs-gan";
-    });
-    const existingIdxMap = new Map(state.questions.map((q, idx) => [q.id, idx]));
-    defQues.forEach(defQ => {
-      const exIdx = existingIdxMap.get(defQ.id);
-      if (exIdx === undefined) {
-        existingIdxMap.set(defQ.id, state.questions.length);
-        state.questions.push(JSON.parse(JSON.stringify(defQ)));
-      } else if (revChanged && !state.questions[exIdx].userEdited) {
-        state.questions[exIdx] = JSON.parse(JSON.stringify(defQ));
-      }
-    });
-  } else {
-    state.questions = JSON.parse(JSON.stringify(defQues));
+    try { localStorage.removeItem(STORAGE_KEYS.QUESTIONS); } catch (_) {}
   }
 
+  const customMap = new Map(customQuestions.map(q => [q.id, q]));
+  state.questions = [];
+  defQues.forEach(defQ => {
+    if (deletedIdSet.has(defQ.id) || obsoleteIds.has(defQ.id)) return;
+    const edited = customMap.get(defQ.id);
+    if (edited && edited.userEdited) {
+      state.questions.push(JSON.parse(JSON.stringify(edited)));
+    } else {
+      state.questions.push(JSON.parse(JSON.stringify(defQ)));
+    }
+  });
+  customQuestions.forEach(q => {
+    if (!defMap.has(q.id) && !obsoleteIds.has(q.id)) {
+      state.questions.push(JSON.parse(JSON.stringify(q)));
+    }
+  });
+
   if (currentRev) {
-    localStorage.setItem(STORAGE_KEYS.DATA_REVISION, currentRev);
+    safeSetStorage(STORAGE_KEYS.DATA_REVISION, currentRev);
   }
 
   state.history = savedHist ? JSON.parse(savedHist) : {};
@@ -143,13 +175,20 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEYS.CURRICULUM, JSON.stringify(state.curriculum));
-  localStorage.setItem(STORAGE_KEYS.QUESTIONS, JSON.stringify(state.questions));
-  localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(state.history));
-  localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(state.bookmarks));
-  localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
+  const defQues = typeof DEFAULT_QUESTIONS !== "undefined" ? DEFAULT_QUESTIONS : [];
+  const defIds = new Set(defQues.map(q => q.id));
+  const stateIds = new Set(state.questions.map(q => q.id));
+  const custom = state.questions.filter(q => !defIds.has(q.id) || q.userEdited);
+  const deletedIds = defQues.filter(q => !stateIds.has(q.id)).map(q => q.id);
+
+  try { localStorage.removeItem(STORAGE_KEYS.QUESTIONS); } catch (_) {}
+  safeSetStorage(STORAGE_KEYS.CURRICULUM, JSON.stringify(state.curriculum));
+  safeSetStorage(STORAGE_KEYS.QUESTIONS_DELTA, JSON.stringify({ custom, deletedIds }));
+  safeSetStorage(STORAGE_KEYS.HISTORY, JSON.stringify(state.history));
+  safeSetStorage(STORAGE_KEYS.BOOKMARKS, JSON.stringify(state.bookmarks));
+  safeSetStorage(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
   if (state.lastSessionKey) {
-    localStorage.setItem(STORAGE_KEYS.LAST_SESSION, state.lastSessionKey);
+    safeSetStorage(STORAGE_KEYS.LAST_SESSION, state.lastSessionKey);
   } else {
     localStorage.removeItem(STORAGE_KEYS.LAST_SESSION);
   }

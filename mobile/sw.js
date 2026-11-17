@@ -1,14 +1,14 @@
-const CACHE_NAME = "bsnt-yhct-mobile-v1";
+const CACHE_NAME = "bsnt-yhct-mobile-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js",
+  "./app.js?v=20261117sl1",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
   "./icon.svg",
-  "../data.js"
+  "../data.js?v=20261117sl1"
 ];
 
 self.addEventListener("install", (event) => {
@@ -46,7 +46,7 @@ self.addEventListener("fetch", (event) => {
 
   if (isDataOrDoc) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-store" })
         .then((res) => {
           if (res && res.ok) {
             const copy = res.clone();
