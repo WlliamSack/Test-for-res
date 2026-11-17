@@ -31,6 +31,7 @@ let state = {
   bankFilterSubject: "all",
   bankFilterLesson: "all",
   bankSearchQuery: "",
+  bankDisplayLimit: 100,
   quiz: {
     title: "",
     mode: "tutor",
@@ -159,6 +160,7 @@ function loadState() {
     migrateHistoryToLessonSessions();
   }
 
+  cleanupExpiredSessions();
   document.documentElement.setAttribute("data-theme", savedTheme);
   saveState();
 }
@@ -352,10 +354,76 @@ function resolveQuestionsForSession(sess) {
   return [];
 }
 
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // Tự động xóa phiên làm dở sau 7 ngày
+
+function isSessionExpired(sess, nowMs = Date.now()) {
+  if (!sess || !sess.updatedAt) return false;
+  const updatedMs = Date.parse(sess.updatedAt);
+  if (Number.isNaN(updatedMs)) return false;
+  return (nowMs - updatedMs) > SESSION_TTL_MS;
+}
+
+function cleanupExpiredSessions() {
+  const nowMs = Date.now();
+  const nextSessions = {};
+
+  Object.entries(state.sessions || {}).forEach(([key, sess]) => {
+    if (!sess) return;
+    if (sess.mode === "exam" && sess.submitted) {
+      if (state.lastSessionKey === key) state.lastSessionKey = null;
+      return;
+    }
+
+    const qs = resolveQuestionsForSession(sess);
+    const totalCount = qs.length;
+    const answeredCount = totalCount > 0
+      ? qs.filter(q => {
+          const ch = sess.answers?.[q.id];
+          return typeof ch === "number" && ch >= 0 && ch < q.options.length;
+        }).length
+      : Object.keys(sess.answers || {}).length;
+
+    const isUnfinished = answeredCount > 0 && answeredCount < totalCount;
+    if (isUnfinished && isSessionExpired(sess, nowMs)) {
+      if (state.lastSessionKey === key) state.lastSessionKey = null;
+      if (sess.kind === "lesson" && sess.mode === "tutor") {
+        // Giữ marker rỗng để bài học không tự nạp lại đáp án cũ từ history -> làm lại từ câu 1
+        nextSessions[key] = {
+          key,
+          kind: "lesson",
+          subjectId: sess.subjectId,
+          lessonId: sess.lessonId,
+          groupName: null,
+          title: sess.title,
+          mode: "tutor",
+          preserveLiveOrder: true,
+          questionIds: null,
+          currentIndex: 0,
+          currentQuestionId: null,
+          answers: {},
+          revealed: {},
+          flagged: {},
+          submitted: false,
+          timerSeconds: 0,
+          updatedAt: new Date(nowMs).toISOString()
+        };
+      }
+      return;
+    }
+
+    nextSessions[key] = sess;
+  });
+
+  state.sessions = nextSessions;
+  if (state.lastSessionKey && !state.sessions[state.lastSessionKey]) {
+    state.lastSessionKey = null;
+  }
+}
+
 function getLastActiveSessionBannerData() {
   if (!state.lastSessionKey) return null;
   const sess = state.sessions[state.lastSessionKey];
-  if (!sess || (sess.mode === "exam" && sess.submitted)) return null;
+  if (!sess || (sess.mode === "exam" && sess.submitted) || isSessionExpired(sess)) return null;
   const qs = resolveQuestionsForSession(sess);
   if (!qs.length) return null;
 
@@ -402,6 +470,11 @@ function resumeLastSession() {
 function saveCurrentQuizSession() {
   if (state.currentView !== "quiz" || !state.quiz.sessionKey) return;
   const key = state.quiz.sessionKey;
+  if (state.quiz.mode === "exam" && state.quiz.submitted) {
+    delete state.sessions[key];
+    if (state.lastSessionKey === key) state.lastSessionKey = null;
+    return;
+  }
   const prevMeta = state.sessions[key] || {};
   const meta = state.quiz.sessionMeta || {};
   const preserveLiveOrder = Boolean(meta.preserveLiveOrder ?? prevMeta.preserveLiveOrder);
@@ -521,6 +594,7 @@ function openQuestionBank(filterSubjectId = state.bankFilterSubject, filterLesso
   state.currentView = "question-bank";
   state.bankFilterSubject = filterSubjectId || "all";
   state.bankFilterLesson = filterLessonId || "all";
+  state.bankDisplayLimit = 100;
   renderSidebar();
   renderMain();
 }
@@ -549,9 +623,10 @@ function renderMain() {
 // ================= VIEW 1: DASHBOARD =================
 function renderDashboardHTML() {
   const totalQ = state.questions.length;
-  const answeredIds = Object.keys(state.history);
-  const answeredCount = answeredIds.filter(id => state.questions.some(q => q.id === id)).length;
-  const correctCount = answeredIds.filter(id => state.history[id]?.isCorrect && state.questions.some(q => q.id === id)).length;
+  const qIdSet = new Set(state.questions.map(q => q.id));
+  const answeredIds = Object.keys(state.history).filter(id => qIdSet.has(id));
+  const answeredCount = answeredIds.length;
+  const correctCount = answeredIds.filter(id => state.history[id]?.isCorrect).length;
   const wrongCount = answeredCount - correctCount;
   const accuracy = answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0;
 
@@ -1188,6 +1263,8 @@ function renderQuestionBankHTML() {
   });
 
   const letters = ["A", "B", "C", "D"];
+  const limit = state.bankDisplayLimit || 100;
+  const sliced = filtered.slice(0, limit);
 
   return `
     <div class="subject-banner" style="flex-direction:column; align-items:stretch; gap:14px;">
@@ -1203,7 +1280,7 @@ function renderQuestionBankHTML() {
             ${selectedSubjObj ? selectedSubjObj.lessons.map(l => `<option value="${l.id}" ${filterLesson === l.id ? "selected" : ""}>${l.title}</option>`).join("") : ""}
           </select>
 
-          <input type="text" class="form-control" style="width:240px;" placeholder="🔍 Tìm từ khóa câu hỏi..." value="${state.bankSearchQuery || ""}" oninput="state.bankSearchQuery = this.value; renderMain();" />
+          <input type="text" class="form-control" style="width:240px;" placeholder="🔍 Tìm từ khóa câu hỏi..." value="${state.bankSearchQuery || ""}" oninput="state.bankSearchQuery = this.value; state.bankDisplayLimit = 100; renderMain();" />
         </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1214,13 +1291,13 @@ function renderQuestionBankHTML() {
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--text-muted); padding-top:8px; border-top:1px solid var(--border-color);">
-        <span>Đang hiển thị: <strong>${filtered.length}</strong> câu hỏi</span>
+        <span>Đang hiển thị: <strong>${sliced.length}</strong> / <strong>${filtered.length}</strong> câu hỏi</span>
         ${filtered.length > 0 ? `<button class="btn btn-sm btn-outline" onclick="launchQuiz('Luyện tập danh sách đang lọc', filteredQuestionsFromCurrentBank(), 'tutor')">🚀 Luyện tập ${filtered.length} câu đang lọc</button>` : ""}
       </div>
     </div>
 
     <div class="lesson-list">
-      ${filtered.map((q, idx) => {
+      ${sliced.map((q, idx) => {
         const subj = state.curriculum.find(s => s.id === q.subjectId);
         const lesson = subj?.lessons.find(l => l.id === q.lessonId);
         return `
@@ -1249,6 +1326,13 @@ function renderQuestionBankHTML() {
           </div>
         `;
       }).join("")}
+      ${filtered.length > sliced.length ? `
+        <div class="stat-card" style="text-align:center; padding:18px;">
+          <button class="btn btn-outline" onclick="state.bankDisplayLimit = (state.bankDisplayLimit || 100) + 100; renderMain();">
+            ⬇️ Hiển thị thêm 100 câu (còn ${filtered.length - sliced.length} câu)
+          </button>
+        </div>
+      ` : ""}
     </div>
   `;
 }
