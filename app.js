@@ -79,7 +79,7 @@ function loadState() {
           }
         });
         // Dọn dẹp bài học cũ nếu có thay đổi cấu trúc môn học (ví dụ hs-enzym, hs-glucid-lipid, gp-*, sl-* placeholder)
-        if (defSubj.id === "hoa-sinh" || defSubj.id === "giai-phau" || defSubj.id === "sinh-ly") {
+        if (defSubj.id === "hoa-sinh" || defSubj.id === "giai-phau" || defSubj.id === "sinh-ly" || defSubj.id === "sinh-hoc-di-truyen") {
           const validIds = new Set(defSubj.lessons.map(l => l.id));
           existingSubj.lessons = existingSubj.lessons.filter(l => validIds.has(l.id));
           // Sắp xếp lại thứ tự bài học theo đúng DEFAULT_CURRICULUM
@@ -97,7 +97,7 @@ function loadState() {
     state.curriculum = JSON.parse(JSON.stringify(defCurr));
   }
 
-  const obsoleteIds = new Set(["q-hs-1", "q-hs-2", "q-gp-1", "q-gp-2", "q-sl-1", "q-sl-2"]);
+  const obsoleteIds = new Set(["q-hs-1", "q-hs-2", "q-gp-1", "q-gp-2", "q-sl-1", "q-sl-2", "q-sh-1"]);
   const defMap = new Map(defQues.map(q => [q.id, q]));
   let customQuestions = [];
   let deletedIdSet = new Set();
@@ -117,7 +117,7 @@ function loadState() {
         if (q.lessonId === "hs-enzym") q.lessonId = "hs-acid-citric";
         if (q.lessonId === "hs-glucid-lipid") q.lessonId = "hs-glucid";
         if (q.lessonId === "hs-protid-gan") q.lessonId = "hs-gan";
-        if (q.userEdited || (!defMap.has(q.id) && !/^q-(gp|hs|sl)-/.test(q.id))) {
+        if (q.userEdited || (!defMap.has(q.id) && !/^q-(gp|hs|sl|sh)-/.test(q.id))) {
           customQuestions.push(q);
         }
       });
