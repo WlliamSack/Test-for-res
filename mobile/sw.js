@@ -1,14 +1,14 @@
-const CACHE_NAME = "bsnt-yhct-mobile-v5";
+const CACHE_NAME = "bsnt-yhct-mobile-v6";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=20261117sl2",
+  "./app.js?v=20261118sh1",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
   "./icon.svg",
-  "../data.js?v=20261117sl2"
+  "../data.js?v=20261118sh1"
 ];
 
 self.addEventListener("install", (event) => {
